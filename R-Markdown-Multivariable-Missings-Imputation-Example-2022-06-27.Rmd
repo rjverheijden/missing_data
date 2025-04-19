@@ -1,0 +1,1087 @@
+---
+title: "R Markdown Multivariate Missings Imputation"
+authors: Karel C. Smit and Rik J. Verheijden
+date: "2022-05-31"
+output:
+  pdf_document:
+    toc: yes
+  html_document:
+    toc: yes
+---
+
+# **Introduction**
+
+## Types of missing data
+
+-   Missing Completely At Random (MCAR)
+    -   The probability that the observation of a given variable for a certain subject is missing is constant for all subjects
+
+        -   Missingness not related to any other patient characteristics (observed or unobserved)
+
+    -   Almost all analytical methods for handling missing data give unbiased results although less precise
+
+    -   Really scarce
+-   Missing At Random (MAR)
+    -   Probability that an observation is missing depends only on other observed values (patient characteristics and outcome)
+
+        -   Missingness related to other patient characteristics including outcome
+
+    -   Most advanced methods handle missing values under the MAR assumption and thus yield in principle unbiased and more precise results in case of MAR
+
+    -   Note: The newer definition of MAR by Mohan and Pearl is variable based and therefore more strict than the classical value based definition of Rubin.
+-   Missing Not At Random (MNAR)
+    -   The probability that an observation is missing depends on unobserved values
+
+        -   E.g. the probability that data are missing depends on the values of the missing data.
+
+    -   But mostly, missingness could be predicted based on several characteristics
+-   Importantly, although MAR is strictly defined as missingness being *only* dependent on other observed characteristics, it is usually referred to in a more nuanced sense as e.g. *'being more MAR than MNAR because missingness is largely related to other observed characteristics'*
+-   Although MCAR, MAR and MNAR seem to be unintuitive, they are well thought definitions:
+    -   Missingness under MAR is at random within each stratum of a multivariable regression
+
+        -   E.g. if missingness of age is only related to sex, missingness is random within each stratum of sex (males and females). This also extrapolates to multivariable regression
+
+    -   Missingness under MCAR is at random irrespective of the strata of each regression
+
+    -   Missingness under MNAR is not at random, even within each stratum of a multivariable regression
+-   Reasons for missingness are based on external knowledge of the data collection procedures
+    -   This also means that you can't perform statistical test to distinguish MAR from MNAR
+-   Describing/visualising missingness patterns might help understanding source of missingness
+-   Drawing Directed Acyclyc Graphs (DAGs) might help interpreting how missings can be handled best
+
+## Consequences of missing data
+
+Missing data may result in
+
+-   Biased estimates
+-   Decreased precision
+
+Multivariate missingness has major implications for most imputation methods:
+
+-   the covariates that provide information on the missingness mechanism contain missing values themselves;
+-   this "circular" dependence occurs even given information from other covariables;
+-   especially with a large number of covariates with missing values and small sample size, collinearity of empty cells occur;
+-   variables are of different types (e.g., binary, unordered, ordered, continuous), thereby making the application of theoretically convenient models, such as the multivariate normal, theoretically inappropriate;
+-   imputation can create impossible combinations such as pregnant fathers.
+
+## Dealing with missing data
+
+During study design phase one needs to carefully think how to
+
+-   Reduce missing values;
+-   Report why data are missing
+    -   This may yield information on how to deal with these missing values and may be used in imputation techniques.
+
+Methods to deal with missing data:
+
+-   Complete case analysis (CCA) =listwise deletion
+
+    -   Conduct all analyses on the same subset of subjects with completely observed variables
+    -   Reduced precision
+    -   Selection bias if not MCAR
+    -   Sometimes possible in case of redefinition of the domain
+
+-   Available case analysis (ACA)
+
+    -   Use in each sub analysis the records with complete data on the variables and outcome in that model (sub-analysis)
+    -   The sub-analyses are not comparable because the population is different
+
+-   Missing indicator method
+
+    -   Give missing values an unreasonably large/low value, make a variable whether the value is missing (=missing indicator) and fit a regression model including the missing indicator
+
+-   Informed imputation:
+
+    -   classify a missing value as part of the categories based on intellect
+        -   e.g. classify brain metastases as absent in case no MRI scan was conducted
+
+-   Overall mean/median imputation
+
+    -   Replace the missing value by the mean/median value of all non-missing values
+
+    -   Associations between variables get distorted: often dilution of the effect
+
+    -   Underestimated standard error
+
+    -   Bias under MAR and sometimes under MCAR
+
+-   Subgroup mean/median imputation
+
+    -   Replace the missing value by the mean/median value of all non-missing values in that subgroup
+
+    -   E.g. based on subgroup with event and based on subgroup without event, or based on variables
+
+-   Simple regression based imputation
+
+    -   Replace missing value by predicted value based on other variables without error correction
+
+-   Single (multivariable) regression based imputation
+
+    -   Replace missing value by predicted value based on multiple regression using all other variables and the outcome:
+
+        -   1\. Impute missing value using multiple regression (which inherently has an error term)
+        -   2\. Run regular regression with extra error correction
+
+    -   Form of stochastic imputation: adds appropriate noise to the predictions
+
+-   Multiple regression based imputation
+
+    -   Form of stochastic imputation
+    -   Similar to single imputation, but now the distribution of the beta's (and errors) are estimated and 'saved' --\> not fixed beta's (as in single imputation)
+        -   Based on the regression model, a random value from a prediction distribution can be used to impute the missing variable
+    -   Multiple imputation through chained equations (mice)
+        -   = multiple imputation by Fully conditional specification
+        -   Based on the same principles as joint modelling
+        -   However, rather than specifying a joint (multivariate) distribution for all covariates, we now specify a conditional distribution for each missing covariate
+        -   This strategy allows a distinct imputation mechanism for each missing covariate, and thus to specify models that are outside any standard multivariate density
+    -   Assumptions
+        -   Missingness according to MAR (or MCAR)
+        -   Models are congenial (see later)
+        -   Distribution of parameters if asymptotically normal
+            -   This is usually only guaranteed when the number of imputations and sample sizes are infinite
+            -   But you don't have to worry about it, because simulation studies have suggested that models perform pretty good even when number of imputations and sample size are small as long as models are congenial
+    -   See [the book by Stef van Buuren](https://stefvanbuuren.name/fimd/)
+
+-   Inverse probability weighting (IPW) of complete cases
+
+    -   complete cases are weighted by the reciprocal of the probability of being a complete case
+    -   IP weights should be known or can be identified from the observed data
+    -   see [Seaman Statistical Methods in Medical Research 2011](https://doi.org/10.1177%2F0962280210395740)
+    -   IPW of complete cases typically less efficient than multiple imputation
+    -   Another use is inverse probability of censoring weighting (IPCW, see [Robins Epidemiology 2000](https://doi.org/10.1097/00001648-200009000-00011))
+        -   IPCW can readily combined with inverse probability of treatment\
+            weighting for causal inference
+
+# **Start of multiple imputation**
+
+In this script, we will first describe the missing data pattern Subsequently, we will use multiple imputation to analyse the data more adequately.
+
+For this example we use a publicly available dataset `boys` in the `mice` package. Everything should run properly without any alterations when the right packages are installed (see: 'required packages' below).
+
+`boys` is a data frame with 748 rows and 9 columns:
+
+| Variable | Description                             | Coding           |
+|:---------|:----------------------------------------|:-----------------|
+| **age**  | Decimal age (0-21 years)                | Continuous       |
+| **hgt**  | Height (cm)                             | Continuous       |
+| **wgt**  | Weight (kg)                             | Continuous       |
+| **bmi**  | Body mass index                         | Continuous       |
+| **hc**   | Head circumference (cm)                 | Continuous       |
+| **gen**  | Genital Tanner stage (G1-G5)            | Factor, 5 levels |
+| **phb**  | Pubic hair (Tanner P1-P6)               | Factor, 6 levels |
+| **tv**   | Testicular volume (mL)                  | Continuous       |
+| **reg**  | Region (north, east, west, south, city) | Factor, 5 levels |
+
+For practical reasons we assume that we want to predict head circumference (`hc`) based on the other variables. Note, this might **not** be the most logical research question. Besides, one might argue that a multilevel analysis with clustering on region (`reg`) might be better.
+
+```{r}
+Formula <- formula(hc~age+hgt+wgt+bmi+gen+phb+tv+reg)
+```
+
+### Required packages
+
+```{r,warning=FALSE,message=FALSE}
+# install.packages("table1") #for table 1 visualisation of missing variables
+library(table1)
+# install.packages("MICE") #for the imputation itself
+library(mice)
+# install.packages("ggplot2") #for visualisations
+library(ggplot2)
+# install.packages("devtools") #ggmice visualises missingsness
+# devtools::install_github("amices/ggmice")
+library(ggmice)
+# install.packages("rms") #for restricted cubic splines
+library(rms) #automatically installs the `Hmisc` package including the rcspline.eval() function
+# install.packages("smcfcs") #for SMC-FCS
+library(smcfcs) 
+```
+
+## Step 1: Load in the data
+
+```{r}
+data<-mice::boys
+str(data)
+# head(data)
+```
+
+We add an indicator variable, to simulate a situation with clinical data
+
+```{r}
+data <- data.frame(id=1:nrow(data), data)
+```
+
+For illustrative purposes, we dichotomise BMI, in a factor `obese` which can either be `no` in case `data$bmi<=30` or `yes` in case `data$bmi>30`.
+
+```{r}
+data$obese <- factor(ifelse(data$bmi>30, "yes", "no"), levels =c("no", "yes"))
+```
+
+## Step 2: descriptives of (missing) data
+
+### Step 2a: percentages of missings
+
+Make a variable indicating whether variables are missing.
+
+```{r}
+miss <- as.numeric(rowMeans(is.na(data))>0)
+data$miss <- factor(ifelse(miss==1, ">=1 missing","complete"))
+```
+
+Total number of cases with \>=1 missing values
+
+```{r}
+table(data$miss)
+```
+
+Percentages of cases with \>=1 missing values
+
+```{r}
+round(prop.table(table(data$miss))*100,2) 
+```
+
+Percentage of missings per variable, and mean percentage for all variables, excluding the first `id` column
+
+```{r}
+pct.missing.variable <- round(colMeans(is.na(data[,2:ncol(data)])) * 100, 2) 
+pct.missing.variable
+
+mean(pct.missing.variable)
+```
+
+### Step 2b: comparison of complete cases with cases with \>=1 missing
+
+Make a table in which we compare cases with \>=1 missing with complete cases. We use the `table1` package here. See the [vignette of table1](https://cran.r-project.org/web/packages/table1/vignettes/table1-examples.html) for more details.Make a table in which we compare cases with \>=1 missing with complete cases. We use the `table1` package here. See the [vignette of table1](https://cran.r-project.org/web/packages/table1/vignettes/table1-examples.html) for more details.
+
+```{r}
+table1(~age+hgt+wgt+bmi+obese+hc+gen+phb+tv+reg|miss #plot all variables stratified by completeness
+       , data = data
+       , overall = NULL #do not include an overall group
+       , topclass = "Rtable1-zebra" #use zebra pattern lay-out
+       ) 
+```
+
+### Step 2c: visualise distribution of missingness and correlation of variables
+
+To check the distribution of missingness of data, we can plot a heatmap. Simplest way to do this is using the `ggmice` package. See the [Github of ggmice](https://github.com/amices/ggmice).
+
+```{r, warning=FALSE, message=FALSE}
+ggmice::plot_pattern(data)
+```
+
+To visualise where there are just a few cases to predict other cases, we can visualise the number of subjects in each level. Therefore, we first write a modified version of the `plot_corr()` function.
+
+```{r}
+plot_groups <- function(data, vrb = "all", label = FALSE, square = TRUE, diagonal = FALSE, rotate = FALSE, useNA = "no") {
+  if (!is.data.frame(data) & !is.matrix(data)) {
+    stop("Dataset should be a 'data.frame' or 'matrix'.")
+  }
+  if (vrb[1] == "all") {
+    vrb <- names(data)
+  }
+  
+groups <- data.frame(vrb=NA, lvl=NA)
+for(i in vrb){
+  if("factor" %in% class(data[,i])){
+    tmp <- data.frame(vrb=rep(i,times=length(levels(data[,i]))),lvl=levels(data[,i]))
+  } else{
+    tmp <- data.frame(vrb=i,lvl=NA)
+  }
+  tmp <- rbind(tmp, cbind(vrb=i, lvl="NA"))
+  groups <- rbind(groups,tmp)
+}
+groups<-groups[-1,]
+
+groups_compl <- data.frame(groups[rep(seq_len(nrow(groups)), each = nrow(groups)), ],
+                          groups, compl=NA, x=NA, y=NA)
+for(i in 1:nrow(groups_compl)){
+  if(groups_compl[i,"vrb"]==groups_compl[i,"vrb.1"]){
+    groups_compl[i,"compl"] <- NA
+  }else if(is.na(groups_compl[i,"lvl"]) & is.na(groups_compl[i,"lvl.1"])){
+    groups_compl[i,"compl"] <- nrow(data[!is.na(data[,groups_compl[i,"vrb"]]) & !is.na(data[,groups_compl[i,"vrb.1"]]),])
+  }else if (is.na(groups_compl[i,"lvl"])&groups_compl[i,"lvl.1"]=="NA"){
+    groups_compl[i,"compl"] <- nrow(data[!is.na(data[,groups_compl[i,"vrb"]]) & is.na(data[,groups_compl[i,"vrb.1"]]),])
+  }else if (groups_compl[i,"lvl"]=="NA" & is.na(groups_compl[i,"lvl.1"])){
+    groups_compl[i,"compl"] <- nrow(data[is.na(data[,groups_compl[i,"vrb"]]) & !is.na(data[,groups_compl[i,"vrb.1"]]),])
+  }else if(is.na(groups_compl[i,"lvl"])){
+    groups_compl[i,"compl"] <- nrow(data[!is.na(data[,groups_compl[i,"vrb"]]) & data[,groups_compl[i,"vrb.1"]]%in%groups_compl[i,"lvl.1"],])
+  }else if(is.na(groups_compl[i,"lvl.1"])){
+    groups_compl[i,"compl"]<- nrow(data[data[,groups_compl[i,"vrb"]]%in%groups_compl[i,"lvl"] & !is.na(data[,groups_compl[i,"vrb.1"]]),])
+  }else if(groups_compl[i,"lvl"]=="NA"){
+    groups_compl[i,"compl"]<- nrow(data[is.na(data[,groups_compl[i,"vrb"]]) & data[,groups_compl[i,"vrb.1"]]%in%groups_compl[i,"lvl.1"],])
+  }else if(groups_compl[i,"lvl.1"]=="NA"){
+    groups_compl[i,"compl"]<- nrow(data[data[,groups_compl[i,"vrb"]]%in%groups_compl[i,"lvl"] & is.na(data[,groups_compl[i,"vrb.1"]]) ,])
+  }else{
+    groups_compl[i,"compl"]<- nrow(data[data[,groups_compl[i,"vrb"]]%in%groups_compl[i,"lvl"] & data[,groups_compl[i,"vrb.1"]]%in%groups_compl[i,"lvl.1"],])
+  }
+  groups_compl[i,"y"]<-ifelse(is.na(groups_compl[i,"lvl.1"]), paste0(groups_compl[i,"vrb.1"]),paste0(groups_compl[i,"vrb.1"], " | ", groups_compl[i,"lvl.1"]))
+  groups_compl[i,"x"]<-ifelse(is.na(groups_compl[i,"lvl"]), paste0(groups_compl[i,"vrb"]),paste0(groups_compl[i,"vrb"], " | ", groups_compl[i,"lvl"]))
+}
+groups_compl[groups_compl$compl%in%0,"compl"]<-0.1
+if(useNA=="both"){
+  groups_plot<-groups_compl
+} else if(useNA=="only"){
+  groups_plot <- groups_compl[groups_compl$lvl%in%"NA",]
+} else{
+  groups_plot <- groups_compl[(is.na(groups_compl$lvl)|groups_compl$lvl!="NA")&(is.na(groups_compl$lvl.1)|groups_compl$lvl.1!="NA"),]
+}
+
+gg <- ggplot2::ggplot(groups_plot, ggplot2::aes(x = .data$x, y = .data$y, label = .data$compl, fill = .data$compl)) +
+        ggplot2::geom_tile(color = "black") +
+        ggplot2::scale_x_discrete(limits = unique(groups_plot$x), position = "top") +
+        ggplot2::scale_y_discrete(limits = rev(unique(groups_plot$y))) +
+        # ggplot2::scale_fill_viridis_c("number\nof\ncases", option = "viridis", na.value = "white", direction = -1, trans = "log10")+
+        # ggplot2::scale_fill_viridis_b("number\nof\ncases", option = "viridis", na.value = "white", direction = -1, trans = "log10", breaks = c(10,100,1000))+
+        ggplot2::scale_fill_gradient2("number\nof\ncases", low = "orangered", mid = "lightyellow", high = "deepskyblue", midpoint = log10(10), na.value = "grey50", trans = "log10") +
+        ggplot2::labs(title = "Number of cases per category")
+
+  if (label) {
+    gg <- gg + ggplot2::geom_text(color = "black", show.legend = FALSE, na.rm = TRUE)
+  }
+  if (square) {
+    gg <- gg + ggplot2::coord_fixed(expand = FALSE)
+  } else {
+    gg <- gg + ggplot2::coord_cartesian(expand = FALSE)
+  }
+  if (rotate) {
+    gg <- gg + ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 90))
+  }
+  return(gg)
+}
+```
+
+Now we can use the function for the visualisation part.
+
+```{r}
+plot_groups(data, rotate = T, label = F)
+```
+
+Check the correlations between variables.
+
+```{r}
+ggmice::plot_corr(data)
+```
+
+## Step 3: think carefully which variables to impute
+
+The imputation model should correspond to the (regression) analysis. This is called **compatibility(\~=congeniality)**. Thus, the imputation model should at least include:
+
+-   the outcome variable;
+-   the covariates/confounders;
+-   interactions if anticipated;
+    -   This is especially important when planning on doing subgroup analyses or including interaction terms in your regression model;
+-   transformations;
+    -   These should be similar to the ones in the final model
+-   non-linear effects (e.g. quadratic terms and splines);
+    -   Note: although splines might be considered a nice way to fit the distribution of a continuous variable, be carefull for overfitting and increasing variance due to the increased number of degrees of freedoms used;
+-   multi-level data (e.g. mixed modeling).
+
+In case of continuous variables, also consider whether transformations or non-linear effects are needed to meet the assumptions used to impute these variables (e.g. for `norm` homoscedasticity (residuals) and linear relationship with outcome). Keep in mind that models should be compatible.
+
+Including **auxiliary variables** in the imputation model
+
+-   Variables that are used for imputation but are not used in the substantive (regression) analysis
+-   Doesn't cause problems with compatibility, although the models are technically uncongenial;
+-   Advantages:
+    -   might result in increased efficiency, if
+
+        -   it is informative of the missingness (e.g. enhances MAR assumption) or
+        -   it is informative of distribution of the missing value(s)
+-   Disadvantages:
+    -   might come at the cost of decreased efficiency (more variance) if none of these two apply
+
+        -   e.g. cost of more degrees of freedom with no extra benefit
+
+    -   might introduce MNAR when auxiliary variables are incomplete
+
+With respect to **imputing the outcome variable**
+
+-   Always include it for imputing missing values
+-   Consider removing the cases with missing outcome after imputation, as it reduces noise in the outcome variable and thus yields more precise estimates.
+-   see [Moons Journal of Clinical Epidemiology 2006](https://doi.org/10.1016/j.jclinepi.2006.01.009) and [Von Hippel Social Methodology 2007](https://doi.org/10.1111/j.1467-9531.2007.00180.x)
+
+**Derived variables**
+
+-   e.g. BMI is derived from weight and height;
+-   Discard variables from which they are derived
+    -   Only if these variables aren't used in the (regression) analysis
+-   Impute-then-transform approach
+    -   Ignore derived variables during imputation, then re-derive variables after imputation
+        -   e.g. impute weight --\> impute height --\> impute other variables, repeat, after all imputations complete--\> derive BMI
+    -   Advantages:
+        -   derived values match corresponding value
+    -   Disadvantages:
+        -   problem of uncongeniality/incompatibility
+        -   small 'outliers' in imputed values from which derived values are derived may result in large 'outliers' after passive imputations
+-   Passive imputation
+    -   Derive variables after/within each imputation iteration
+        -   e.g. impute weight --\> impute height --\> derive BMI --\> impute other variables --\> repeat
+    -   Advantages:
+        -   no problem of uncongeniality/incompatibility
+        -   derived values match corresponding value
+        -   derived variables can be used for imputation of other variables
+    -   Disadvantages:
+        -   small 'outliers' in imputed values from which derived values are derived may result in large 'outliers' after passive imputations
+-   just-another-variable approach (JAV)
+    -   impute as any other variable, ignoring deterministic relation between values e.g. using `pmm`
+    -   Advantages:
+        -   probably somewhat less variance in imputed values
+    -   Disadvantages:
+        -   possibility of impossible combinations which might impact the (regression) analysis
+-   Substantive Model Compatible Fully Conditional Specification (SMC-FCS)
+    -   Ensures that each partially observed variable is imputed from an imputation model which is compatible with a user specified model for the outcome (congeniality)
+    -   see [Barlett Stat Meth Med Res 2015](https://doi.org/10.1177%2F0962280214521348)
+
+Further note that there currently is no perfect approach to impute transformed variables and interaction terms. Passive imputation of the interaction and 'just another variable' (JAV) imputation in which the interaction term is added and actively imputed as a separate variable (e.g. using classification and regression trees (CART) or PMM) are both not perfect.
+
+## Step 4: prepare for imputation
+
+### Step 4a: select variables
+
+First, select the variables we want to include in our imputed databases and specify their class. MICE distinguishes between three types of variables: numeric, binary (factor with 2 levels), and categorical (factor with more than 2 levels). Each type has a default imputation method:
+
+-   predictive mean matching (`pmm`) for numeric data;
+    -   grossly unrealistic imputations are avoided
+    -   draws from observed values of individuals who have similar predictive mean (='donor values')
+    -   Disadvantages:
+        -   may produce bias when there is a need to extrapolate beyond observed values
+
+        -   in case of a lot of missing data in a region, duplication of the same 'donor' value might happen several times
+
+            -   This is especially likely if one variable is highly related to missingness
+-   logistic regression (`logreg`) for binary data, and;
+-   polytomous (unordered) regression (`polyreg`) for categorical data.
+
+Most convenient options are summed up in Table 6.1 of [the book by Stef van Buuren](https://stefvanbuuren.name/fimd/):
+
+| Method         | Description                            | Scale Type  |
+|:---------------|:---------------------------------------|:------------|
+| `pmm`          | Predictive mean matching               | Any$^*$     |
+| `midastouch`   | Weighted predictive mean matching      | Any         |
+| `sample`       | Random sample from observed values     | Any         |
+| `cart`         | Classification and regression trees    | Any         |
+| `rf`           | Random forest imputation               | Any         |
+| `mean`         | Unconditional mean imputation          | Numeric     |
+| `norm`         | Bayesian linear regression             | Numeric     |
+| `norm.boot`    | Normal imputation with bootstrap       | Numeric     |
+| `norm.nob`     | Normal imputation ignoring model error | Numeric     |
+| `norm.predict` | Normal imputation, predicted values    | Numeric     |
+| `quadratic`    | Imputation of quadratic terms          | Numeric     |
+| `ri`           | Random indicator for nonignorable data | Numeric     |
+| `logreg`       | Logistic regression                    | Binary$^*$  |
+| `logreg.boot`  | Logistic regression with bootstrap     | Binary      |
+| `polr`         | Proportional odds model                | Ordinal$^*$ |
+| `polyreg`      | Polytomous logistic regression         | Nominal$^*$ |
+| `lda`          | Discriminant analysis                  | Nominal     |
+
+All options can be found using `methods(mice)`.
+
+```{r}
+data.mice <- with(data, data.frame(id=id,
+                                   age=age,
+                                   hgt=hgt,
+                                   wgt=wgt,
+                                   bmi=bmi,
+                                   obese = factor(obese),
+                                   hc=hc,
+                                   tv=tv))
+```
+
+### Step 4b: transform variables if necessary and/or include non-linear effects
+
+For this example, we will assume that testicular volume (`tv`) is not normally distributed with the outcome (`hc`). Just for example purposes, we will include a non-linear effect using restricted cubic splines (rcs) using the `Hmisc` package.
+
+First, we specify the positions of the knots.
+
+```{r}
+k.pos.tv <- rcspline.eval(data.mice$tv,nk=5,knots.only = T)
+```
+
+Create spline variables and add them to the data frame
+
+```{r}
+# physically create spline variables and add to dataframe
+tmp <- data.frame(rcspline.eval(data.mice$tv, knots = k.pos.tv))
+colnames(tmp) <- paste0("tv.spline.",1:(length(k.pos.tv)-2),sep="")
+data.mice <- cbind(data.mice,tmp)
+rm(tmp)
+```
+
+### Step 4c: run dry imputation
+
+```{r}
+set.seed(1)
+imp.0 <- mice(data.mice, maxit=0)
+```
+
+### Step 4d: define methods for imputation and passively impute
+
+First we store the default methods obtained from the dry run, so we can modify it easily for later use. Notice that the method for `age` is `""` indicating that it won't be imputed. This makes sense, since `age` does not contain missing values.
+
+```{r}
+method <- imp.0$method
+method
+```
+
+In this example, we want `bmi` to be passively imputed as `wgt/((hgt/100)^2)` (height in meters) to prevent spurious values for `bmi` in relation to `hgt` and `wgt`.
+
+```{r}
+method["bmi"]<-"~I(wgt/((hgt/100)^2))"
+```
+
+Note: we will impute-then-transform `obese` for demonstrative purposes, so we don't need to specify it's imputation method here. We could however, set the method to `""`.
+
+```{r}
+method["obese"]<-""
+```
+
+Here we specify that the splines for `tv` should be imputed using `tv`.
+
+```{r}
+method[grep("tv*.*spline",names(method))] <- paste0("~I(rcspline.eval(tv, knots = k.pos.tv)[,",1:(length(k.pos.tv)-2),"])")
+```
+
+It doesn't make sense to use splines and `pmm`, so for this example, we will impute `hc` and `hgt` using `norm` (Bayesian linear regression). For this example we will keep the method for `wgt` and `tv` being `pmm`.
+
+```{r}
+method[c("hc", "hgt")]<- "norm"
+```
+
+Check methods
+
+```{r}
+method
+```
+
+### Step 4e: define predictor matrix and passively impute
+
+First we store the predictor matrix which we obtained from the dry run, so we can modify it easily for later use.
+
+Each variable in our data set `data.mice` has a row and a column in the predictor matrix. A value of `1` indicates that the column variable was used to impute missing values for the row variable. For example, the `1` at entry `[age, hgt]` indicates that variable `hgt` was used to impute the incomplete variable `age`. Note that the diagonal is zero because a variable is not allowed to impute itself.
+
+```{r}
+pred <- imp.0$predictorMatrix
+ggmice::plot_pred(pred)
+```
+
+The `id` variable should not be used as a predictor for other variables
+
+```{r}
+pred[,"id"]<-0
+```
+
+Similarly, `id` doesn't have to be predicted. It is not necessary to specify this in the prediction matrix since there are no missings, but just as an example and to keep the prediction matrix clear we will specify it.
+
+```{r}
+pred["id",]<-0
+```
+
+Alternatively, we could set all cells of the rows in the prediction matrix for which the method for imputation is `""` to `0`. This helps us later to interpret the prediction matrix.
+
+```{r}
+pred[names(method)[method==""],]<-0
+```
+
+We want `hgt` and `wgt` not to be imputed based on `bmi`.
+
+```{r}
+pred[c("hgt", "wgt"),"bmi"]<-0
+```
+
+Note that `bmi` may only be predicted by`hgt` and `wgt`. It is not necessary to specify this in the prediction matrix since it is embedded in the prediction method for these splines. However, we do specify it here to prevent confusion when looking at the prediction matrix in future.
+
+```{r}
+pred["bmi",colnames(pred)[!colnames(pred) %in% c("wgt", "hgt")]]<-0
+```
+
+Since we want to impute-then-transform `obese` it should not be predicted.
+
+```{r}
+pred["obese",]<-0
+```
+
+Besides, it shouldn't be a predictor.
+
+```{r}
+pred[,"obese"]<-0
+```
+
+Furthermore, we do not want the splines for `tv` to predict the `tv` itself.
+
+```{r}
+pred["tv", c(paste0("tv.spline.",1:(length(k.pos.tv)-2),sep=""))]<-0
+#similar to
+# pred["tv", c("tv.spline.1", "tv.spline.2", "tv.spline.3")]<-0
+```
+
+Note that `tv.spline.1`, `tv.spline.2` and `tv.spline.3` may only be predicted by`tv`. As with `bmi`, it is not necessary to specify this in the prediction matrix since it is embedded in the prediction method for these splines. However, we do specify it here to prevent confusion when looking at the prediction matrix in future.
+
+```{r}
+pred[grep("tv*.*spline",rownames(pred)),colnames(pred)[colnames(pred)!="tv"]]<-0
+```
+
+We do not want the variables with method `pmm` to be based on the splines, but only on `tv` so we will specify it here.
+
+```{r}
+pred[names(method)[method=="pmm"], grep("tv*.*spline",colnames(pred))]<-0
+
+#similar to
+# pred[c("wgt", "tv"), grep("tv*.*spline",colnames(pred))]<-0
+```
+
+Check prediction matrix again:
+
+```{r}
+ggmice::plot_pred(pred)
+```
+
+## Step 5: actual imputation
+
+The imputation follows the MICE algorithm which is a modified Gibbs sampler (step 2 and 3 below), which is based on Bayesian statistics: use previously known information in the estimation.
+
+In short, steps are as follows:
+
+1.  impute missing values with initial ('place holder') values;
+2.  start imputing one variable, thereby replacing their place holders;
+    -   a\. set place holder values back to missing
+    -   b\. estimate the posterior predictive distribution for that variable given all other variables using all values of the current dataset
+    -   c\. replace the missing values with draws from the estimated posterior predictive distribution
+3.  repeat steps 2a-c for the next variable, until all variables are imputed;
+4.  iterate until convergence (`maxit` times)
+5.  repeat steps 1-4 *m* times to create *m* imputed datasets.
+
+For now we set `m` to 5 and `maxit` to 5 to limit processing time. Run the final analysis with `m`$=100-percentage_{complete cases}$ (see [White, Statistics in Medicine 2009](https://doi.org/10.1002/sim.4067)). `maxit=20` is often sufficient for convergence, but check the trace plots (see later).
+
+```{r}
+imp <- mice(data.mice, predictorMatrix = pred, method = method, m=5, maxit=5)
+```
+
+NB the command above can provide a warning: `"Warning: Number of logged events: NUMBER` (40 in this case)". See [chapter 9.1.5. 'Finding problems: `loggedEvents`](https://stefvanbuuren.name/fimd/sec-toomany.html#finding-problems-loggedevents) of [the book by Stef van Buuren](https://stefvanbuuren.name/fimd/).
+
+```{r}
+head(imp$loggedEvents, 6)
+```
+
+In our case, it seems that `tv.spline.2` is being neglected during the regression of `hgt` and `hc`, in this case because it is *linear dependent*. Adding `eps=0` within mice bypasses the removal of *linear dependent* variables.
+
+```{r}
+imp <- mice(data.mice, predictorMatrix = pred, method = method, m=5, maxit=5, eps=0)
+```
+
+## Step 6: check imputation
+
+### Step 6a: check methods and prediction matrix
+
+To quickly check whether we made errors in the prediction matrix, we can plot it.
+
+```{r}
+imp$method
+ggmice::plot_pred(imp$predictorMatrix)
+```
+
+### Step 6b: check convergence
+
+What we want to see:
+
+-   (mean) imputed values make sense
+-   Lines should not diverge (would be an **identification problem**=not one maximum likelihood solution)
+-   Lines should not converge too much, some difference in estimated values should be present within the multiple imputed datasets
+-   In conclusion: it should be a bit messy around the same center.
+
+```{r, warning=FALSE, message=FALSE}
+ggmice::plot_trace(imp, c("hc","bmi","hgt"))
+
+#or similarly
+# plot(imp, y = c("hc","bmi","hgt"), layout = c(2,3))
+```
+
+### Step 6c: check imputed vs observed values
+
+```{r}
+ggmice(imp, aes(x=hgt,y=wgt))+
+  geom_point()
+ggmice(imp, aes(x=hgt,y=bmi))+
+  geom_point()
+ggmice(imp, aes(x=wgt,y=bmi))+
+  geom_point()
+ggmice(imp, aes(x=hgt,y=hc))+
+  geom_point()
+ggmice(imp, aes(x=age,y=bmi))+
+  geom_point()
+ggmice(imp, aes(x=hc,y=tv))+
+  geom_jitter()
+```
+
+## Step 7: modify imputed datasets
+
+In case we would want to modify the imputed datasets, we could turn them into a long file
+
+```{r}
+idl <- complete(imp, "long", include = TRUE)
+```
+
+Here, we can make modifications or add variables (*impute-then-transform*). E.g. let's add `obese`, a dichotomised version of `bmi` in which `>30` will become `1` and `<=30` will become `0` (purely for illustrative purposes).
+
+```{r}
+idl$obese <- factor(ifelse(idl$bmi>30, "yes", "no"), levels =c("no", "yes"))
+```
+
+Now, we make a `mids` object again. **Important note:** only the data and missingness pattern will be stored here, the `method` and `predictorMatrix` created are the default ones.
+
+```{r}
+imp.modified <- as.mids(idl
+                        , where = is.na(idl[idl$.imp==0,c(3:ncol(idl))]) #specifies which data are missing.
+                        , .imp=".imp"
+                        , .id=".id")
+```
+
+## Step 8: analysis on all *m* imputations
+
+Run the analyses on all imputed datasets.
+
+We only run the analyses on cases without missing outcome variable. Therefore, we first identify which subjects have complete outcome variable. Then, we run the analyses on the subset of patients with complete outcome variable. In this way, we obtain *m* results
+
+```{r}
+outcome.observed <- which(!is.na(imp$data$hc))
+
+# Start the analyses in patients with complete data for 'hc'
+fit <- with(data = imp, exp = lm(formula = hc~age+hgt+wgt+bmi+tv+rcspline.eval(tv, knots=k.pos.tv), subset=outcome.observed))
+```
+
+## Step 9: pooling of results
+
+Combine the *m* results into one according to **Rubin's rules**:
+
+-   The point estimate (parameter of interest, e.g. beta) is averaged over the results of the imputed dataset
+    -   $\overline{Q} = \frac{1}{m}\sum_{l = 1}^{m}{\widehat{Q}}_{l}$
+        -   Where $\overline{Q}$ is the point estimate
+        -   $m$ is the number of imputations
+        -   ${\widehat{Q}}_{l}$ is the estimate of the $l^{th}$ imputation
+-   The total variance is estimated using Rubin's rules
+    -   Total variance stems from three sources $T = \overline{U} + B + \frac{B}{m}$
+    -   Within imputation variance ($\overline{U}$)
+        -   variance caused by the fact that we take a random sample from the entire population as with conventional statistics
+        -   $\overline{U} = \frac{1}{m}\sum_{l = 1}^{m}{\overline{U}}_{l}$
+            -   Where ${\overline{U}}_{l}$ is the variance-covariance matrix of ${\widehat{Q}}_{l}$ for the $l^{th}$ imputation
+    -   Between imputation variance ($B$)
+        -   The extra variance caused by the fact that there are missing values in a sample
+        -   $B = \frac{1}{m - 1}\sum_{l = 1}^{m}{\left( {\widehat{Q}}_{l} - \overline{Q} \right)\left( {\widehat{Q}}_{l} - \overline{Q} \right)'}$
+    -   Simulation variance ($B/m$)
+        -   The extra simulation variance caused by the fact that the estimate is only estimated a finite $m$ times
+
+```{r}
+est <- pool(fit)
+summary(est)
+```
+
+Transformation to risk ratio, odds ratio or hazard ratio in case of e.g. logistic regression/Cox proportional hazard regression:
+
+```{r, results="hide"}
+est.summary <- summary(est)
+results.table <- data.frame(OR=exp(est.summary$estimate),
+                            CI.LO=exp(est.summary$estimate-est.summary$std.error*qnorm(1-0.05/2)),
+                            CI.HI=exp(est.summary$estimate+est.summary$std.error*qnorm(1-0.05/2)),
+                            pval=est.summary$p.value)
+rownames(results.table)<-est.summary$term
+results.table #not for linear regression
+```
+
+# Time to event data
+
+-   Time-to-event outcomes (survival analysis) are a particular case in which uncongeniality might be a problem
+-   It is recommended to use event indicator and baseline cumulative hazard function when imputing time-to-event data (see [White Statistics in medicine 2009](https://doi.org/10.1002/sim.3618))
+    -   Typically, the baseline cumulative hazard function is unknown
+
+    -   if it is reasonable to assume constant baseline hazard (=if proportional hazard assumption holds), it suffices to include event indicator and untransformed time as covariates
+
+    -   When covariate effects are small, one could approximate baseline\
+        cumulative hazard with (Nelson-Aalen) marginal cumulative hazard\
+        estimator
+
+    -   The baseline cumulative hazard function can also be estimated by passive imputation by fitting a Cox model to the current imputed dataset
+-   Alternatively, use Substantive Model Compatible Fully Conditional Specification (SMC-FCS)
+    -   see [Bartlett et al. Multiple imputation of covariates by fully conditional specification: Accommodating the substantive model. Statistical Methods in Medical Research 2015](https://doi.org/10.1177%2F0962280214521348) and [Keogh et al. Multiple imputation in Cox regression when there are time-varying effects of covariates. Statistics in Medicine 2018](https://doi.org/10.1002/sim.7842)
+
+    -   Bartlett et al. start from the complete-data model and ask whether the imputation model is compatible, in contrast to the former vision that asks whether the analysis model is congenial to the imputation model.
+
+# **Substantive Model Compatible Fully Conditional Specification multiple imputation (SMC-FCS)**
+
+Here, the steps are described for using SMC-FCS using the `smcfcs` package by Bartlett.
+
+## SMC-FCS Steps 1-4e: similar to `mice`
+
+Perform steps 1 up and until 4 of the previous `mice` script.
+
+## SMC-FCS Step 4f: rename predictor methods
+
+`smcfcs` cannot cope with all methods used in mice, hence, we need to use some other prediction methods here
+
+```{r}
+method[method=="pmm"] <- "norm" # replace pmm with norm for smcfcs
+method[method=="polyreg"] <- "mlogit" # replace polyreg with mlogit for smcfcs
+method[method=="polr"] <- "podds" #replace polr for podds
+```
+
+Furthermore, no prediction method should be specified for the outcome variable.
+
+```{r}
+method["hc"] <- ""
+```
+
+Additionally, custom methods are specified somewhat differently in `smcfcs` than in `mice`.
+
+```{r}
+method[substr(method,0,3)=="~I("]<-substr(method[substr(method,0,3)=="~I("],2,nchar(method[substr(method,0,3)=="~I("])) #remove `~`
+```
+
+`smcfcs` can not cope with data with missing values that we do not want to impute (e.g. in case of *impute-then-transform*. This makes sense, since it enforces compatibility and thus requires all variables included in the final model to have a method specified. Therefore, we will delete `obese` from our data frame, prediction matrix and methods. Obviously, it is way easier to not take it along from the beginning ([Step 4a: select variables] of the `mice` script).
+
+```{r}
+data.smcfcs<-data.mice
+data.smcfcs[,"obese"]<-NULL
+
+pred.smcfcs <- pred[-which(rownames(pred)=="obese"),-which(colnames(pred)=="obese")]
+method.smcfcs <- method[-which(names(method)=="obese")]
+```
+
+Check the methods and predictor matrix.
+
+```{r}
+method.smcfcs
+ggmice::plot_pred(pred.smcfcs)
+```
+
+## SMC-FCS Step 5: actual imputation
+
+Run the imputation with prespecifies model using `smcfcs`.
+
+SMC-FCS more often has convergence issues than MICE. That's why in this example we only run one imputation.
+
+For now we set `m` to 5 and `numit` to 20 to limit processing time. Run the final analysis with `m`$=100-percentage_{complete cases}$ (see [White, Statistics in Medicine 2009](https://doi.org/10.1002/sim.4067)). A higher `numit` is often needed for convergence than the `maxit=20` with `mice`, check the trace plots (see later). Default `rjlimit` is `1000`, but as this would result in convergence problems, we set it to 100000. We could set is to an even higher value safely, but it would increase computing time without any benefit.
+
+```{r}
+set.seed(2)
+imps <- smcfcs(data.smcfcs,
+               smtype = "lm",
+               smformula = "hc~age+hgt+wgt+bmi+tv+rcspline.eval(tv, knots=k.pos.tv)",
+               method = method.smcfcs,
+               predictorMatrix = pred.smcfcs,
+               m=5,
+               numit=20,
+               rjlimit = 1000)
+```
+
+## SMC-FCS Step 6a-b: check imputation
+
+Method and predictor matrix cannot be obtained from the `smcfcs` result `imps`.
+
+To check the convergence, we can make traceplots.
+
+```{r}
+plot(imps, include = "all")
+```
+
+We can check observed vs fitted values according to Step 6c in the mice script after SMC-FCS step 7.
+
+## SMC-FCS Step 7: modify imputed datasets and obtain `mids` object
+
+From the `imps` object, we obtain a long data frame with similar characteristics as the `mild` object `idl` obtained with `complete()` from mice.
+
+```{r}
+imps.list <- imps$impDatasets #obtain imputed datasets
+imps.list <- append(list(data.smcfcs), imps.list) #add original dataset
+
+for(i in 1:length(imps.list)){ #for each of the imputed datasets
+  imps.list[[i]]$.imp<-i-1 #add number of imputation
+  imps.list[[i]]$.id<-1:nrow(imps.list[[i]]) #add id column
+  imps.list[[i]]<-imps.list[[i]][,c(".imp", ".id", colnames(imps.list[[i]][1:(ncol(imps.list[[i]])-2)]))]
+}
+
+idl <- do.call(rbind,imps.list) #turn list into a long data frame
+```
+
+Now, we can do the same alterations before obtaining a `mids` object which we can use for downstream analyses as with `mice`.
+
+Here, we can make modifications or add variables (*impute-then-transform*). E.g. let's add `obese`, a dichotomised version of `bmi` in which `>30` will become `1` and `<=30` will become `0` (purely for illustrative purposes).
+
+```{r}
+idl$obese <- factor(ifelse(idl$bmi>30, "yes", "no"), levels =c("no", "yes"))
+```
+
+Now, we make a `mids` object again. **Important note:** only the data and missingness pattern will be stored here, the `method` and `predictorMatrix` created are the default ones.
+
+```{r}
+imp <- as.mids(idl
+               , where = is.na(idl[idl$.imp==0,c(3:ncol(idl))]) #specifies which data are missing.
+               , .imp=".imp"
+               , .id=".id")
+```
+
+## SMC-FCS Step 6c: check imputation
+
+Now we can finally check the imputed versus observed variables
+
+```{r}
+ggmice(imp, aes(x=hgt,y=wgt))+
+  geom_point()
+ggmice(imp, aes(x=hgt,y=bmi))+
+  geom_point()
+ggmice(imp, aes(x=wgt,y=bmi))+
+  geom_point()
+ggmice(imp, aes(x=hgt,y=hc))+
+  geom_point()
+ggmice(imp, aes(x=age,y=bmi))+
+  geom_point()
+ggmice(imp, aes(x=hc,y=tv))+
+  geom_point()
+```
+
+## SMC-FCS Steps 8-9: similar to `mice`
+
+We can now resume with the analysis and pooling steps of the `mice` script.
+
+# Multilevel data
+
+-   Clustering needs to be taken into account to prevent
+    -   Underestimation of the magnitude of clustering
+    -   Underestimation of variance
+-   Sporadic missingness: partly missing data for some variables in some or all clusters
+-   Systematic missingness: completely missing data for some variables in some clusters
+-   If clusters are large:
+    -   Stratified imputation: add cluster as a fixed effect interaction
+    -   Within study imputation: impute separately within each cluster
+    -   But both come with problems with systematic missingness
+-   Multi-level imputation
+    -   See [Audigier Statistical Science 2018](https://www.jstor.org/stable/26770989) and [Kunkel Stat Med. 2017](https://pubmed.ncbi.nlm.nih.gov/28695667/)
+    -   Only works if number of clusters are large (\~\>10)
+    -   Convergence problems occur often
+    -   Fully conditional specification
+        -   FCS-2stage (Resche-Rigon & White)
+
+            -   Very fast
+            -   Prone to bias when imputing binary covariates in small studies or lots of sporadic missingness
+            -   Low precision
+
+        -   FCS-GLM (Jolani, Debray, et al.)
+
+            -   Low bias, particularly for imputation of continuous variables
+
+            -   Tendency to underestimate precision and heterogeneity
+
+            -   Computationally intensive
+
+            -   Advantageous when clusters/studies are small
+    -   Joint modeling
+        -   JM-JOMO (Quartagno et al.)
+
+            -   Recommended when number of studies is large
+
+            -   Prone to bias when few individuals and/or studies
+
+            -   (over)conservative with respect to heterogeneity
+
+# Reporting of missing data
+
+-   TRAMOS framework
+
+    -   See [Framework for the treatment and reporting of missing data in observational studies: The Treatment And Reporting of Missing data in Observational Studies framework, Lee Journal of Clinical Epidemiology](https://doi.org/10.1016/j.jclinepi.2021.01.008)
+
+-   Describe how missing data were handled (methods)
+
+    -   Possible reasons for missingness
+    -   Details on software
+    -   List of variables included for imputation
+    -   Explain how continuous, binary and categorical predictors were handled in the imputation model
+    -   State whether interactions were included in the imputation model
+    -   Report number of imputations in case of multiple imputation
+
+-   Details regarding missing data (results)
+
+    -   Number of individuals with any missing value, 1 missing value etc.
+    -   Number of missing values (per predictor and outcome)
+    -   Comparison of the characteristics of individuals with any missing value and those with completely observed data
+        -   Table with the values for subjects without any missing values vs subjects with \>=1 missing value (don't include p-values in the paper)
+
+            -   If any difference exists between the two groups, they are not MCAR
+
+# Missing data in prediction research
+
+-   In contrast to causal inference, individual predictions and not general inference of effects are desired
+    -   Unbiased estimates of association between predictors and outcomes\
+        are necessary for making good predictions
+    -   Unbiased predictor effects estimates are desired (Stein's paradox)
+-   The missing indicator method might be a good approach, because missingness of predictors might be highly predictive of outcome
+    -   See [Sperrin Journal of Clinical Epidemiology 2020](https://doi.org/10.1016/j.jclinepi.2020.03.028) and [Smeden Journal of Clinical Epidemiology 2020](https://doi.org/10.1016/j.jclinepi.2020.06.007)
+-   Consider making different submodels for every missing data pattern
+    -   see [Fletcher Mercaldo Biostatistics 2020](https://doi.org/10.1093/biostatistics/kxy040)
+-   Consider not including a predictor with a large degree of missingness
+    -   No good cut-off
+-   Validation of predictive performance
+    -   see [Wahl BMC Med Res Meth 2016](https://doi.org/10.1186/s12874-016-0239-7) (on internal validation) and [Wood Biometr J 2015](https://doi.org/10.1002/bimj.201400004) and [Hoogland Statistics in Medicine 2020](https://doi.org/10.1002/sim.8682) (on external validation)
+
+# Useful tools
+
+-   See also [gerkovink.com/miceVignettes/](https://www.gerkovink.com/miceVignettes/) which walks you through solving realistic inference problems with MICE:
+
+    -   [1. Ad Hoc methods and the mice algorithm](https://www.gerkovink.com/miceVignettes/Ad_hoc_and_mice/Ad_hoc_methods.html)
+
+    -   [2. Convergence and pooling](https://www.gerkovink.com/miceVignettes/Convergence_pooling/Convergence_and_pooling.html)
+
+    -   [3. Inspecting how the observed data and missingness are related](https://www.gerkovink.com/miceVignettes/Missingness_inspection/Missingness_inspection.html)
+
+    -   [4. Passive imputation and post-processing](https://www.gerkovink.com/miceVignettes/Passive_Post_processing/Passive_imputation_post_processing.html)
+
+    -   [5. Combining inferences](https://www.gerkovink.com/miceVignettes/Combining_Inferences/Combining_inferences.html)
+
+    -   [6. Imputing multi-level data](https://www.gerkovink.com/miceVignettes/Multi_level/Multi_level_data.html)
+
+    -   [7. Sensitivity analysis with mice](https://www.gerkovink.com/miceVignettes/Sensitivity_analysis/Sensitivity_analysis.html)
+
+    -   [8. `futuremice`: Wrapper for parallel MICE imputation through futures](https://www.gerkovink.com/miceVignettes/futuremice/Vignette_futuremice.html)
+
+-   See [Mohan and Pearl 2021,](https://ftp.cs.ucla.edu/pub/stat_ser/r473-L.pdf) for an overview of graphical models for processing missing data (e.g. using Directed Acyclic Graphs (DAGs))
+
+-   DAGs can be made using ggdag package. Examples of DAGs using this package can be found [here](https://lfoswald.github.io/2021-spring-stats2/materials/session-3/03-online-tutorial/) and [here](https://ggdag.malco.io/articles/intro-to-dags.html) and package instructions can be found [here](https://cran.r-project.org/web/packages/ggdag/ggdag.pdf)
+
+```{r, warning=FALSE, message=FALSE}
+
+# install.packages("ggdag")
+library(ggdag)
+library(ggplot2)
+theme_set(theme_dag()) #  set theme of all DAGs to `theme_dag()`
+```
+
+simple example
+
+```{r}
+#setting the coördinates for each 'variable' used in the DAG
+coord_dag <- list(
+  x = c(Y = 2, X = 1, C = 0),
+  y = c(Y = 0, X = 0, C = 1)
+)
+
+#create the DAG
+dagify(Y ~ C
+       ,Y ~ X
+       ,coords=coord_dag) %>% 
+  ggdag()
+```
+
+# Session information and licence
+
+```{r}
+sessionInfo()
+```
+
+This file is licensed under the GNU GPLv3.0.
+
+    Copyright (C) 2022  Karel C. Smit & Rik J. Verheijden
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
